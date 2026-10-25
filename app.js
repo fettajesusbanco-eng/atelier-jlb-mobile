@@ -1,4 +1,4 @@
-/* Atelier JLB Mobile — v1.2.0. Données locales conservées, aucune opération distante en écriture. */
+/* Atelier JLB Mobile — v1.3.0. Boutique Gumroad locale. Aucune création ni publication distante. */
 'use strict';
 const STORAGE_KEY = 'atelier-jlb-mobile-data-v1'; // Clé inchangée depuis v1.1 : conserve chansons, liens, playlists et brouillons.
 const UNDO_KEY = 'atelier-jlb-mobile-undo-import-v1';
@@ -7,15 +7,19 @@ const GITHUB_GESTIONNAIRE = 'https://github.com/fettajesusbanco-eng/gestionnaire
 const ATELIER_PAGES = 'https://fettajesusbanco-eng.github.io/gestionnaire-playlists-youtube/atelier_reprise_securisee.html';
 const AUDIT_PAGES = 'https://fettajesusbanco-eng.github.io/gestionnaire-playlists-youtube/audit_commentaires_jlb.html';
 const CAPCUT = 'https://www.capcut.com/';
-const APP_VERSION = '1.2';
+const APP_VERSION = '1.3';
+const GUMROAD_DASHBOARD = 'https://gumroad.com/products';
+let gumroadEditId = '';
+let gumroadPreselectId = '';
 const defaultState = () => ({
   atelierJlbMobile: true, version:1, videos:[], importedAt:null,
   links:{github:'https://github.com/fettajesusbanco-eng',atelier:ATELIER_PAGES,nettoyage:AUDIT_PAGES,youtube:'https://studio.youtube.com/',suno:'https://suno.com/',extras:[]},
   projects:[],
+  gumroad:{drafts:[],shopUrl:''},
   settings:{large:false,contrast:false,light:false,hand:'right'}
 });
 let state = load();
-let activePage = ['home','playlists','descriptions','tools','studio','data','settings'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'home';
+let activePage = ['home','playlists','descriptions','tools','studio','gumroad','data','settings'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'home';
 let activeFilter = 'tous';
 let searchText = '';
 let importMode = 'catalogue';
@@ -37,7 +41,19 @@ function validateState(s){const d=defaultState();if(!s||typeof s!=='object')retu
     done:!!x.done,
     createdAt:String(x.createdAt||'').slice(0,32)
   })).filter(x=>x.name):[];
-  return {...d,videos:Array.isArray(s.videos)?s.videos.map(normalizeVideo).filter(v=>v.title).slice(0,10000):[],importedAt:s.importedAt||null,links,projects,settings:{...d.settings,...s.settings}};
+  const g=s.gumroad && typeof s.gumroad==='object' ? s.gumroad : {};
+  const drafts=Array.isArray(g.drafts)?g.drafts.filter(x=>x&&typeof x==='object').slice(0,1000).map((x,i)=>({
+    id:String(x.id||('g-'+i)).slice(0,90),videoId:String(x.videoId||'').slice(0,24),
+    title:String(x.title||'').slice(0,180),type:x.type==='album'?'album':'chanson',
+    price:Number.isFinite(Number(x.price))&&Number(x.price)>=0?Number(x.price):1.99,
+    currency:'EUR',description:String(x.description||'').slice(0,15000),
+    files:Array.isArray(x.files)?x.files.map(f=>String(f).slice(0,220)).filter(Boolean).slice(0,30):[],
+    rights:['a_verifier','confirme','non'].includes(x.rights)?x.rights:'a_verifier',
+    status:['brouillon','pret','publie'].includes(x.status)?x.status:'brouillon',
+    gumroadUrl:validUrl(x.gumroadUrl)||'',
+    createdAt:String(x.createdAt||'').slice(0,32)
+  })).filter(x=>x.title):[];
+  return {...d,videos:Array.isArray(s.videos)?s.videos.map(normalizeVideo).filter(v=>v.title).slice(0,10000):[],importedAt:s.importedAt||null,links,projects,gumroad:{drafts,shopUrl:validUrl(g.shopUrl)||''},settings:{...d.settings,...s.settings}};
 }
 function save(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));return true;}catch(e){toast('Stockage local indisponible ou saturé. Exporte une sauvegarde.');return false;}}
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -75,13 +91,14 @@ const playlistNames=new Set(state.videos.flatMap(v=>[v.currentPlaylist,v.targetP
 return `${layoutIntro('ATELIER JLB · V'+APP_VERSION,'Tous tes projets, enfin réunis','Chansons, descriptions, playlists, créations et accès directs depuis le même écran.')}
 <div class="summary"><div class="metric"><strong>${count}</strong><small>vidéos locales</small></div><div class="metric"><strong>${planned}</strong><small>affectations à vérifier</small></div><div class="metric"><strong>${drafts.length}</strong><small>descriptions en brouillon</small></div></div>
 <div class="status-line"><span class="status-dot" aria-hidden="true"></span><span><strong>Espace local :</strong> aucune publication automatique. ${playlistNames} nom(s) de playlists dans le fichier ; ce n’est pas le total de YouTube.</span></div>
-<div class="panel start-panel"><h2>Mes actions</h2><div class="button-row"><button class="button primary" data-action="go" data-page="playlists">☷ Playlists (${planned})</button><button class="button" data-action="go" data-page="descriptions">✎ Textes (${drafts.length})</button><button class="button" data-action="go" data-page="studio">♫ Projets (${todo})</button></div>
+<div class="panel start-panel"><h2>Mes actions</h2><div class="button-row"><button class="button primary" data-action="go" data-page="playlists">☷ Playlists (${planned})</button><button class="button" data-action="go" data-page="descriptions">✎ Textes (${drafts.length})</button><button class="button" data-action="go" data-page="studio">♫ Projets (${todo})</button><button class="button" data-action="go" data-page="gumroad">▣ Boutique (${state.gumroad.drafts.length})</button></div>
 ${drafts.length?`<div class="shortlist"><p class="mini"><strong>Descriptions restant à vérifier</strong></p>${drafts.slice(0,5).map(v=>`<button class="simple-row" data-action="jump-video" data-uid="${esc(v.uid)}"><span>✎ ${esc(v.title)}</span><span>Ouvrir ›</span></button>`).join('')}${drafts.length>5?`<p class="mini">Et ${drafts.length-5} autre(s) brouillon(s)…</p>`:''}</div>`:'<p class="mini">Aucun brouillon de description en attente dans ce catalogue.</p>'}
 </div>
 <div class="section-head"><h2>Accès directs</h2><span>Services externes</span></div><div class="tool-grid">
 ${toolShortcut('▤','Atelier YouTube','Descriptions et playlists',state.links.atelier)}
 ${toolShortcut('◉','Audit commentaires','Lecture seule',state.links.nettoyage)}
 ${toolShortcut('♫','Suno','Création musicale',state.links.suno)}
+${tile('▣','Boutique Gumroad','Préparer tes fiches produits','gumroad')}
 ${toolShortcut('▶','YouTube Studio','Gestion de la chaîne',state.links.youtube)}
 ${toolShortcut('⌘','GitHub','Dépôts et code',state.links.github)}
 ${toolShortcut('✂','CapCut','Montage vidéo',CAPCUT)}
@@ -151,14 +168,88 @@ function renderStudio(){
  <div class="panel"><div class="section-head tight"><h2>Mon suivi musical</h2><span>${total} tâche(s)</span></div>
  ${total?`<div class="project-list">${[...state.projects].sort((a,b)=>Number(a.done)-Number(b.done)).map(p=>`<div class="project-item"><label class="check-label project-check"><input type="checkbox" data-project-id="${esc(p.id)}" ${p.done?'checked':''}><span><strong class="${p.done?'is-done':''}">${esc(p.name)}</strong><small>${esc(STUDIO_TYPES[p.kind]||STUDIO_TYPES.autre)} · ${p.done?'Terminé':'À réaliser'}</small></span></label><button class="small-button" data-action="delete-project" data-project-id="${esc(p.id)}" aria-label="Retirer ${esc(p.name)} du suivi">✕</button></div>`).join('')}</div>`:'<div class="empty">Aucune tâche pour l’instant. Ajoute le premier clip, texte ou partition à suivre.</div>'}
  </div>
+ <div class="panel"><h2>Boutique Gumroad</h2><p>Prépare tes fiches de vente MP3, WAV ou albums, avec contrôle des droits.</p><button class="button primary wide" data-action="go" data-page="gumroad">Ouvrir ma boutique</button></div>
  <div class="panel"><h2>Production et diffusion</h2><div class="button-row">${btnLink('Ouvrir Suno',state.links.suno)}${btnLink('CapCut',CAPCUT)}${btnLink('YouTube Studio',state.links.youtube)}</div><p class="mini">Les outils externes peuvent demander une connexion distincte.</p></div>
  <div class="panel"><h2>Archiver mes projets</h2><p>La sauvegarde complète JSON inclut désormais les tâches du studio, les liens, le catalogue et les brouillons.</p><button class="button primary wide" data-action="backup">Sauvegarde complète JSON</button></div>`;
 }
+// Gumroad : atelier de PREPARATION LOCALE uniquement. Aucun jeton ni operation distante.
+function gumroadDraft(id){return state.gumroad.drafts.find(p=>p.id===id);}
+function gumroadMoney(n){return Number(n||0).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';}
+function gumroadPrintable(p){return `${p.title}\n\n${p.description}\n\nPrix de vente prévu : ${gumroadMoney(p.price)}\nFichiers à ajouter sur Gumroad : ${p.files.join(', ')||'(aucun fichier enregistré)'}\n\nCette fiche est un brouillon local. Publication, téléchargement des fichiers et paiement se configurent uniquement dans Gumroad.`.replace(/\\n/g,'\n');}
+function gumroadIsUrl(url){try{const u=new URL(url);return u.protocol==='https:' && (u.hostname==='gumroad.com'||u.hostname.endsWith('.gumroad.com'))}catch{return false;}}
+function renderGumroad(){
+ const drafts=state.gumroad.drafts;
+ const published=drafts.filter(p=>p.status==='publie').length;
+ const ready=drafts.filter(p=>p.status==='pret').length;
+ const selected=gumroadDraft(gumroadEditId);
+ return `${layoutIntro('VENTE DE MUSIQUE · GUMROAD','Ma boutique musicale','Prépare ici les fiches des chansons et des albums. Rien n’est publié ni transféré automatiquement.')}
+ <div class="summary"><div class="metric"><strong>${drafts.length}</strong><small>fiches locales</small></div><div class="metric"><strong>${ready}</strong><small>prêtes à publier</small></div><div class="metric"><strong>${published}</strong><small>marquées publiées</small></div></div>
+ <div class="panel"><h2>Créer une fiche à vendre</h2>
+ <form id="gumroadCreate" class="gumroad-form">
+ <label class="field"><span>Choisir une chanson de mon catalogue</span><select id="gumroadVideoId"><option value="">— Album ou nouveau titre libre —</option>${state.videos.map(v=>`<option value="${esc(v.videoId)}" ${gumroadPreselectId===v.videoId?'selected':''}>${esc(v.title)}</option>`).join('')}</select></label>
+ <label class="field"><span>Titre libre (uniquement pour un album ou titre hors catalogue)</span><input id="gumroadCustomTitle" maxlength="180" placeholder="Ex. : Chansons de jeunesse — album"></label>
+ <label class="field"><span>Type de produit</span><select id="gumroadProductType"><option value="chanson">Chanson (single)</option><option value="album">Album / collection</option></select></label>
+ <button class="button primary wide" type="submit">＋ Préparer la fiche</button></form>
+ <div class="notice">Chaque fiche reste un brouillon local. Gumroad ne permet pas actuellement de créer un produit complet et d’y téléverser les fichiers par son API. Le transfert et la publication s’effectuent dans son site.</div></div>
+ ${selected?`<section class="panel gumroad-editor"><div class="section-head tight"><h2>Modifier la fiche</h2><button class="small-button" data-action="gum-close">Fermer ✕</button></div>
+ <form id="gumroadEdit">
+ <label class="field"><span>Nom du produit</span><input name="title" maxlength="180" required value="${esc(selected.title)}"></label>
+ <label class="field"><span>Prix proposé en euros</span><input name="price" type="number" min="0" max="10000" step="0.01" inputmode="decimal" required value="${esc(selected.price)}"></label>
+ <label class="field"><span>Description de vente</span><textarea name="description" rows="8" maxlength="15000" placeholder="Texte de présentation de la chanson">${esc(selected.description)}</textarea></label>
+ <label class="field"><span>Fichiers prévus à livrer (un nom par ligne)</span><textarea name="files" rows="4" maxlength="6500" placeholder="Overdosis.mp3&#10;Overdosis.wav">${esc(selected.files.join('\n'))}</textarea></label>
+ <label class="field"><span>Ajouter les noms depuis les fichiers du téléphone (aucun envoi)</span><input name="fileNames" type="file" multiple accept=".mp3,.wav,.flac,.m4a,.zip,.pdf,.mp4,.jpg,.jpeg,.png,.webp"></label>
+ <label class="field"><span>Droits de vente</span><select name="rights"><option value="a_verifier" ${selected.rights==='a_verifier'?'selected':''}>À vérifier</option><option value="confirme" ${selected.rights==='confirme'?'selected':''}>Droits commerciaux vérifiés par moi</option><option value="non" ${selected.rights==='non'?'selected':''}>Non autorisé à la vente</option></select></label>
+ <label class="field"><span>État de préparation</span><select name="status"><option value="brouillon" ${selected.status==='brouillon'?'selected':''}>Brouillon</option><option value="pret" ${selected.status==='pret'?'selected':''}>Prêt à publier manuellement</option><option value="publie" ${selected.status==='publie'?'selected':''}>Publié (je l’ai fait sur Gumroad)</option></select></label>
+ <label class="field"><span>Lien produit Gumroad (si publié)</span><input name="gumroadUrl" type="url" placeholder="https://...gumroad.com/l/..." value="${esc(selected.gumroadUrl)}"></label>
+ <button class="button primary wide" type="submit">Enregistrer la fiche localement</button></form>
+ <div class="button-row"><button class="button" data-action="gum-copy" data-gum-id="${esc(selected.id)}">Copier la fiche</button><button class="button" data-action="gum-txt" data-gum-id="${esc(selected.id)}">Télécharger fiche TXT</button></div>
+ <p class="mini">Le choix de fichiers n’enregistre que leurs noms. Les fichiers audio, images et ZIP restent sur ton appareil jusqu’à leur ajout manuel dans Gumroad.</p></section>`:''}
+ <section class="panel"><div class="section-head tight"><h2>Mes fiches préparées</h2><span>${drafts.length} produit(s)</span></div>
+ ${drafts.length?drafts.map(p=>`<div class="item"><div class="item-header"><strong>${esc(p.title)}</strong><span class="pill ${p.status==='publie'?'safe':p.rights==='non'?'alert':''}">${p.status==='publie'?'Publié · déclaré':p.status==='pret'?'Prêt':'Brouillon'}</span></div>
+ <div class="sub">${esc(p.type==='album'?'Album':'Chanson')} · ${esc(gumroadMoney(p.price))} · ${p.files.length} fichier(s) prévu(s) · Droits : ${esc(p.rights==='confirme'?'vérifiés':p.rights==='non'?'non autorisés':'à vérifier')}</div>
+ <div class="button-row"><button class="button" data-action="gum-edit" data-gum-id="${esc(p.id)}">Modifier</button><button class="button" data-action="gum-copy" data-gum-id="${esc(p.id)}">Copier</button><button class="button danger" data-action="gum-delete" data-gum-id="${esc(p.id)}">Retirer</button></div>
+ ${p.gumroadUrl?`<p class="mini"><a href="${esc(p.gumroadUrl)}" target="_blank" rel="noopener noreferrer">Ouvrir le produit enregistré ↗</a></p>`:''}</div>`).join(''):'<div class="empty">Aucune fiche pour le moment. Choisis une chanson ci-dessus pour commencer.</div>'}</section>
+ <div class="panel"><h2>Exporter, sauvegarder, publier manuellement</h2>
+ <div class="button-row"><button class="button" data-action="gum-export">Exporter les fiches CSV</button><button class="button" data-action="backup">Sauvegarde complète JSON</button></div>
+ <div class="button-row"><a class="button primary wide" href="${GUMROAD_DASHBOARD}" target="_blank" rel="noopener noreferrer">Ouvrir Gumroad pour créer le produit ↗</a></div>
+ <p class="mini">Sur Gumroad : créer un produit numérique, recopier le titre et la description, ajouter les vrais fichiers MP3/WAV/ZIP et la pochette, choisir le prix, puis publier manuellement. Aucun jeton d’accès Gumroad n’est demandé par cet atelier.</p>
+ <div class="notice warning">Vérifie les droits sur les paroles, la musique, les enregistrements et les illustrations (notamment les conditions de Suno) avant de vendre. « Prêt » ne constitue pas une certification des droits.</div></div>`;
+}
+function gumroadCreate(id,title,type){
+ const video=id?state.videos.find(v=>v.videoId===id):null;
+ const name=(video?.title||title||'').trim().slice(0,180);
+ if(!name){toast('Choisis une chanson ou indique le nom d’un album.');return;}
+ if(state.gumroad.drafts.length>=1000){toast('Limite des fiches atteinte.');return;}
+ const found=video&&state.gumroad.drafts.find(p=>p.videoId===id&&p.type===type);
+ if(found){gumroadEditId=found.id;render();toast('Fiche existante ouverte.');return;}
+ const item={id:'gum-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8),videoId:video?.videoId||'',title:name,type:type==='album'?'album':'chanson',price:1.99,currency:'EUR',description:video?.updatedDescription||video?.description||'',files:[],rights:'a_verifier',status:'brouillon',gumroadUrl:'',createdAt:new Date().toISOString()};
+ state.gumroad.drafts.push(item);gumroadEditId=item.id;gumroadPreselectId='';save();render();toast('Fiche de vente locale créée.');
+}
+function gumroadSaveEdit(form){const p=gumroadDraft(gumroadEditId);if(!p)return;
+ const f=new FormData(form), price=Number(f.get('price'));
+ if(!Number.isFinite(price)||price<0||price>10000){toast('Prix invalide.');return;}
+ const rights=String(f.get('rights')),status=String(f.get('status'));
+ const oldFiles=String(f.get('files')||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+ const add=[...(form.querySelector('[name="fileNames"]')?.files||[])].map(f=>f.name);
+ const files=[...new Set([...oldFiles,...add])].slice(0,30);
+ const desc=String(f.get('description')||'').trim(),url=String(f.get('gumroadUrl')||'').trim();
+ if(status!=='brouillon' && (rights!=='confirme'||!files.length||!desc.trim())){alert('Pour marquer la fiche prête, confirme les droits commerciaux et renseigne une description et au moins un fichier prévu. Aucun fichier n’est envoyé par l’application.');return;}
+ if(status==='publie' && !gumroadIsUrl(url)){alert('Pour marquer comme publié, renseigne l’URL HTTPS du produit Gumroad que tu as effectivement publié.');return;}
+ if(url&&!gumroadIsUrl(url)){alert('Le lien doit être une adresse HTTPS Gumroad.');return;}
+ Object.assign(p,{title:String(f.get('title')||'').trim().slice(0,180),price,description:desc.slice(0,15000),files,rights,status,gumroadUrl:url});
+ save();render();toast('Fiche sauvegardée. Aucune publication Gumroad.');
+}
+function gumroadExport(){if(!state.gumroad.drafts.length){toast('Aucune fiche à exporter.');return;}
+ const headers=['videoId','titre','type','prix_eur','description','fichiers_prevus','droits','statut_local','url_gumroad'];
+ const rows=state.gumroad.drafts.map(p=>[p.videoId,p.title,p.type,p.price.toFixed(2),p.description,p.files.join(' | '),p.rights,p.status,p.gumroadUrl].map(csvCell).join(';'));
+ saveFile('JLB_GUMROAD_FICHES_'+new Date().toISOString().slice(0,10)+'.csv','\uFEFF'+headers.join(';')+'\r\n'+rows.join('\r\n'),'text/csv;charset=utf-8');toast(state.gumroad.drafts.length+' fiche(s) exportées en CSV.');}
+
 function renderData(){const changed=state.videos.filter(v=>v.description!==v.updatedDescription).length;
 return `${layoutIntro('FICHIERS','Importer & sauvegarder','Sauvegardes en JSON et tableaux CSV, sans stockage de mot de passe ou de jeton d’accès.')}
 <div class="panel"><h2>Catalogue et sauvegardes</h2><p>${state.videos.length} chansons en mémoire. ${changed} description(s) modifiée(s). ${state.importedAt?'Dernier import : '+esc(new Date(state.importedAt).toLocaleString('fr-FR')):'Aucun import effectué.'}</p>
 <div class="button-row"><button class="button primary" data-action="import" data-mode="merge">Fusionner descriptions</button><button class="button" data-action="import" data-mode="catalogue">Remplacer catalogue complet</button><button class="button" data-action="import" data-mode="restore">Restaurer sauvegarde JSON</button></div><p class="mini">La fusion conserve les vidéos et leurs playlists déjà en mémoire. Elle ne remplace que les descriptions trouvées par identifiant vidéo. L'importation complète remplace les données locales après confirmation.</p><button class="button wide" data-action="undo-import">Annuler la dernière importation (si disponible)</button></div>
 <div class="panel"><h2>Exporter mon travail</h2><div class="button-row"><button class="button primary" data-action="backup">Sauvegarde complète JSON</button><button class="button" data-action="exportcsv">Catalogue CSV</button><button class="button" data-action="export-descriptions">CSV descriptions pour l'ancien atelier</button><button class="button" data-action="export-playlists">CSV affectations proposées</button></div><div class="notice">Les exports sont seulement des <strong>fichiers de préparation</strong>. Pour l'ancien atelier, choisir « Modifier les descriptions uniquement » et contrôler son aperçu avant tout envoi. Ne pas choisir « Descriptions + commentaires ».</div></div>
+<div class="panel"><h2>Fiches Gumroad</h2><p>${state.gumroad.drafts.length} projet(s) de vente sauvegardé(s) avec le catalogue. La sauvegarde JSON conserve les textes et les noms de fichiers, pas les fichiers audio eux-mêmes.</p><button class="button wide" data-action="go" data-page="gumroad">▣ Ouvrir la boutique</button></div>
 <div class="panel"><h2>Protection des données</h2><p>Les fichiers importés et tes brouillons restent dans le stockage local du navigateur. Ils ne sont pas synchronisés automatiquement avec un autre appareil.</p><button class="button danger wide" data-action="clear">Effacer toutes les données locales</button></div>`;}
 function renderSettings(){return `${layoutIntro('ACCESSIBILITÉ','Réglages','Une interface adaptable aux yeux, à la main et à la manière de travailler.')}
 <div class="panel"><h2>Confort d’utilisation</h2>
@@ -166,9 +257,9 @@ function renderSettings(){return `${layoutIntro('ACCESSIBILITÉ','Réglages','Un
 <label class="check-label"><input type="checkbox" data-setting="contrast" ${state.settings.contrast?'checked':''}> Contraste renforcé</label>
 <label class="check-label"><input type="checkbox" data-setting="light" ${state.settings.light?'checked':''}> Mode clair</label>
 <label class="field"><span>Main principale</span><select data-setting="hand"><option value="right" ${state.settings.hand==='right'?'selected':''}>Droite</option><option value="left" ${state.settings.hand==='left'?'selected':''}>Gauche (ordre de navigation inversé)</option></select></label></div>
-<div class="panel"><h2>Commandes vocales</h2><p>Depuis le bouton 🎙️, dis : « accueil », « playlists », « descriptions », « GitHub », « outils », « sauvegarde » ou « réglages ».</p><button class="button primary wide" data-action="voice">Essayer la commande vocale</button><div class="notice">La reconnaissance dépend du navigateur et peut nécessiter Internet et une autorisation microphone. Aucune commande vocale ne publie ni ne supprime de vidéo.</div></div>
+<div class="panel"><h2>Commandes vocales</h2><p>Depuis le bouton 🎙️, dis : « accueil », « playlists », « descriptions », « Gumroad », « boutique », « sauvegarde » ou « réglages ».</p><button class="button primary wide" data-action="voice">Essayer la commande vocale</button><div class="notice">La reconnaissance dépend du navigateur et peut nécessiter Internet et une autorisation microphone. Aucune commande vocale ne publie ni ne supprime de vidéo.</div></div>
 <div class="panel"><h2>Installer l’application</h2><p>Après mise en ligne en HTTPS sur GitHub Pages, ouvre son URL dans Chrome sur Android, puis utilise le menu ⋮ → « Installer l'application » ou « Ajouter à l'écran d'accueil ».</p><button id="installButton" class="button wide" data-action="install">Installer si disponible</button></div>`;}
-function render(){applySettings();const pages={home:renderHome,playlists:renderPlaylists,descriptions:renderDescriptions,tools:renderTools,studio:renderStudio,data:renderData,settings:renderSettings};main.innerHTML=(pages[activePage]||renderHome)();document.querySelectorAll('[data-page]').forEach(b=>{if(b.closest('.tabbar')){b.classList.toggle('active',b.dataset.page===activePage);b.setAttribute('aria-current',b.dataset.page===activePage?'page':'false');}});}
+function render(){applySettings();const pages={home:renderHome,playlists:renderPlaylists,descriptions:renderDescriptions,tools:renderTools,studio:renderStudio,gumroad:renderGumroad,data:renderData,settings:renderSettings};main.innerHTML=(pages[activePage]||renderHome)();document.querySelectorAll('[data-page]').forEach(b=>{if(b.closest('.tabbar')){b.classList.toggle('active',b.dataset.page===activePage);b.setAttribute('aria-current',b.dataset.page===activePage?'page':'false');}});}
 function parseCsv(text){text=String(text||'').replace(/^\uFEFF/,'');const headerLine=text.split(/\r?\n/,1)[0];const semi=(headerLine.match(/;/g)||[]).length, tabs=(headerLine.match(/\t/g)||[]).length, commas=(headerLine.match(/,/g)||[]).length;const sep=tabs>semi&&tabs>commas?'\t':semi>commas?';':',';
 const rows=[];let cell='',row=[],inQuotes=false;
 for(let i=0;i<text.length;i++){const c=text[i];if(inQuotes){if(c==='"'&&text[i+1]==='"'){cell+='"';i++;}else if(c==='"'){inQuotes=false;}else cell+=c;}else if(c==='"'){inQuotes=true;}else if(c===sep){row.push(cell);cell='';}else if(c==='\n'||c==='\r'){if(c==='\r'&&text[i+1]==='\n')i++;row.push(cell);cell='';if(row.some(x=>x.trim()))rows.push(row);row=[];}else cell+=c;}
@@ -272,17 +363,23 @@ function openExternal(url){const ok=validUrl(url);if(!ok){toast('Lien non config
 let deferredPrompt=null;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;});
 async function install(){if(deferredPrompt){deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;}else{alert('Installation via le navigateur : ouvre le site publié en HTTPS, puis menu ⋮ → « Installer l’application » ou « Ajouter à l’écran d’accueil ».');}}
 function voice(){const Rec=window.SpeechRecognition||window.webkitSpeechRecognition;if(!Rec){alert('La reconnaissance vocale n’est pas disponible dans ce navigateur. Sur Android, essaie Chrome.');return;}
-const rec=new Rec();rec.lang='fr-FR';rec.interimResults=false;rec.maxAlternatives=1;toast('Écoute… parle maintenant.');rec.onresult=e=>{const heard=e.results[0][0].transcript.toLocaleLowerCase('fr').normalize('NFD').replace(/[\u0300-\u036f]/g,'');toast('Entendu : '+heard);if(/github|git hub/.test(heard)){openExternal(state.links.github);return;}if(/studio youtube/.test(heard)){openExternal(state.links.youtube);return;}const choices=[[/playlist|liste de lecture/,'playlists'],[/description|texte/,'descriptions'],[/sauvegarde|donnee|fichier|export/,'data'],[/reglage|parametre|confort/,'settings'],[/outil|projet|lien/,'tools'],[/accueil|menu|maison/,'home']];const found=choices.find(([rx])=>rx.test(heard));if(found)nav(found[1]);else toast('Commande inconnue. Dis « playlists » ou « accueil ».');};rec.onerror=e=>toast('Voix indisponible : '+e.error);try{rec.start();}catch{toast('Impossible de démarrer le microphone.');}}
+const rec=new Rec();rec.lang='fr-FR';rec.interimResults=false;rec.maxAlternatives=1;toast('Écoute… parle maintenant.');rec.onresult=e=>{const heard=e.results[0][0].transcript.toLocaleLowerCase('fr').normalize('NFD').replace(/[\u0300-\u036f]/g,'');toast('Entendu : '+heard);if(/github|git hub/.test(heard)){openExternal(state.links.github);return;}if(/studio youtube/.test(heard)){openExternal(state.links.youtube);return;}const choices=[[/playlist|liste de lecture/,'playlists'],[/description|texte/,'descriptions'],[/sauvegarde|donnee|fichier|export/,'data'],[/reglage|parametre|confort/,'settings'],[/gumroad|boutique|mettre en vente|vente de chanson/,'gumroad'],[/outil|projet|lien/,'tools'],[/accueil|menu|maison/,'home']];const found=choices.find(([rx])=>rx.test(heard));if(found)nav(found[1]);else toast('Commande inconnue. Dis « playlists » ou « accueil ».');};rec.onerror=e=>toast('Voix indisponible : '+e.error);try{rec.start();}catch{toast('Impossible de démarrer le microphone.');}}
 document.querySelector('.tabbar').addEventListener('click',e=>{const b=e.target.closest('[data-page]');if(b)nav(b.dataset.page);});
 $('settingsButton').addEventListener('click',()=>nav('settings'));
 $('voiceButton').addEventListener('click',voice);
-window.addEventListener('hashchange',()=>{const page=location.hash.slice(1);if(['home','playlists','descriptions','tools','studio','data','settings'].includes(page)&&page!==activePage){activePage=page;render();}});
+window.addEventListener('hashchange',()=>{const page=location.hash.slice(1);if(['home','playlists','descriptions','tools','studio','gumroad','data','settings'].includes(page)&&page!==activePage){activePage=page;render();}});
 main.addEventListener('click',e=>{const b=e.target.closest('[data-action]');if(!b)return;const act=b.dataset.action;
 if(act==='go'){if(b.dataset.page==='voice')voice();else nav(b.dataset.page);}
 if(act==='jump-video'){const v=state.videos.find(x=>x.uid===b.dataset.uid);if(v){activeFilter='tous';searchText=v.title;nav('descriptions');}}
 if(act==='delete-project'){const project=state.projects.find(x=>x.id===b.dataset.projectId);if(project&&confirm('Retirer « '+project.name+' » du tableau local ?')){state.projects=state.projects.filter(x=>x.id!==project.id);save();render();}}
 if(act==='settings')nav('tools');
 if(act==='voice')voice();
+if(act==='gum-close'){gumroadEditId='';render();}
+if(act==='gum-edit'){gumroadEditId=b.dataset.gumId;nav('gumroad');}
+if(act==='gum-copy'){const p=gumroadDraft(b.dataset.gumId);if(p){const txt=gumroadPrintable(p);if(navigator.clipboard?.writeText){navigator.clipboard.writeText(txt).then(()=>toast('Fiche copiée.')).catch(()=>{alert(txt);});}else{alert(txt);}}}
+if(act==='gum-txt'){const p=gumroadDraft(b.dataset.gumId);if(p){const safe=p.title.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9_-]+/g,'_').slice(0,55);saveFile('GUMROAD_'+safe+'.txt',gumroadPrintable(p),'text/plain;charset=utf-8');toast('Fiche TXT téléchargée.');}}
+if(act==='gum-delete'){const p=gumroadDraft(b.dataset.gumId);if(p&&confirm('Retirer le brouillon local « '+p.title+' » ? Aucun produit Gumroad ne sera supprimé.')){state.gumroad.drafts=state.gumroad.drafts.filter(x=>x.id!==p.id);if(gumroadEditId===p.id)gumroadEditId='';save();render();}}
+if(act==='gum-export')gumroadExport();
 if(act==='filter'){activeFilter=b.dataset.category;render();}
 if(act==='import'){importMode=b.dataset.mode||'catalogue';inputFile.value='';inputFile.click();}
 if(act==='simulate')simulate();
@@ -302,6 +399,10 @@ if(el.id==='searchInput'){searchText=el.value;const region=$('results');if(regio
 if(el.dataset.edit==='updatedDescription'){setItem(el.dataset.uid,'updatedDescription',el.value);const wrap=el.closest('.item');const note=wrap?.querySelector('.mini');if(note)note.textContent=`Brouillon conservé localement · ${el.value.length} caractères`;}
 });
 main.addEventListener('submit',e=>{
+ if(e.target.id==='gumroadCreate'){
+ e.preventDefault();gumroadCreate($('gumroadVideoId')?.value,$('gumroadCustomTitle')?.value,$('gumroadProductType')?.value);return;
+ }
+ if(e.target.id==='gumroadEdit'){e.preventDefault();gumroadSaveEdit(e.target);return;}
  if(e.target.id!=='projectForm')return;
  e.preventDefault();
  const name=$('projectName')?.value.trim().slice(0,160),kind=$('projectKind')?.value;
