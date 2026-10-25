@@ -7,7 +7,7 @@ const GITHUB_GESTIONNAIRE = 'https://github.com/fettajesusbanco-eng/gestionnaire
 const ATELIER_PAGES = 'https://fettajesusbanco-eng.github.io/gestionnaire-playlists-youtube/atelier_reprise_securisee.html';
 const AUDIT_PAGES = 'https://fettajesusbanco-eng.github.io/gestionnaire-playlists-youtube/audit_commentaires_jlb.html';
 const CAPCUT = 'https://www.capcut.com/';
-const APP_VERSION = '1.3';
+const APP_VERSION = '1.3.1';
 const GUMROAD_DASHBOARD = 'https://gumroad.com/products';
 let gumroadEditId = '';
 let gumroadPreselectId = '';
@@ -375,7 +375,21 @@ if(act==='delete-project'){const project=state.projects.find(x=>x.id===b.dataset
 if(act==='settings')nav('tools');
 if(act==='voice')voice();
 if(act==='gum-close'){gumroadEditId='';render();}
-if(act==='gum-edit'){gumroadEditId=b.dataset.gumId;nav('gumroad');}
+if(act==='gum-edit'){
+ const draft=gumroadDraft(b.dataset.gumId);
+ if(!draft){toast('Fiche introuvable.');return;}
+ gumroadEditId=draft.id;
+ // Recréer le formulaire sans renvoyer l’utilisateur tout en haut.
+ if(activePage!=='gumroad')nav('gumroad');else render();
+ requestAnimationFrame(()=>{
+   const editor=main.querySelector('.gumroad-editor');
+   if(!editor)return;
+   const header=document.querySelector('.topbar');
+   const offset=(header?header.getBoundingClientRect().height:0)+14;
+   const y=Math.max(0,window.scrollY+editor.getBoundingClientRect().top-offset);
+   window.scrollTo({top:y,behavior:'instant'});
+ });
+}
 if(act==='gum-copy'){const p=gumroadDraft(b.dataset.gumId);if(p){const txt=gumroadPrintable(p);if(navigator.clipboard?.writeText){navigator.clipboard.writeText(txt).then(()=>toast('Fiche copiée.')).catch(()=>{alert(txt);});}else{alert(txt);}}}
 if(act==='gum-txt'){const p=gumroadDraft(b.dataset.gumId);if(p){const safe=p.title.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9_-]+/g,'_').slice(0,55);saveFile('GUMROAD_'+safe+'.txt',gumroadPrintable(p),'text/plain;charset=utf-8');toast('Fiche TXT téléchargée.');}}
 if(act==='gum-delete'){const p=gumroadDraft(b.dataset.gumId);if(p&&confirm('Retirer le brouillon local « '+p.title+' » ? Aucun produit Gumroad ne sera supprimé.')){state.gumroad.drafts=state.gumroad.drafts.filter(x=>x.id!==p.id);if(gumroadEditId===p.id)gumroadEditId='';save();render();}}
