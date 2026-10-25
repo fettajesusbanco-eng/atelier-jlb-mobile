@@ -1,0 +1,4 @@
+titre;videoId;categorie;playlistActuelle;playlistCible;descriptionActuelle;descriptionNouvelle
+"Chanson exemple A";abc123;litteraire;Anciens textes;Textes littéraires;"Je raconte une histoire.";"Cette chanson évoque une histoire à travers le regard de son auteur."
+"Chanson exemple B";def456;ia;Chansons;Dialogue avec l'IA;"Une chanson issue d'un échange.";"Cette chanson est issue d'un dialogue créatif avec l'intelligence artificielle."
+"Chanson exemple C";ghi789;originale;Compositions originales;Compositions originales;"Une composition originale.";"Une composition originale."
