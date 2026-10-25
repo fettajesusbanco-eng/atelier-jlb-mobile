@@ -1,6 +1,9 @@
-/* Atelier JLB Mobile — MVP local, sans jetons d'accès et sans publication distante. */
+/* Atelier JLB Mobile — v1.1.0, simulation et brouillons locaux, sans accès distant en écriture. */
 'use strict';
-const STORAGE_KEY = 'atelier-jlb-mobile-data-v1';
+const STORAGE_KEY = 'atelier-jlb-mobile-data-v1'; // Clé conservée : garde les 130 vidéos et les réglages déjà enregistrés.
+const UNDO_KEY = 'atelier-jlb-mobile-undo-import-v1';
+const GITHUB_MOBILE = 'https://github.com/fettajesusbanco-eng/atelier-jlb-mobile';
+const GITHUB_GESTIONNAIRE = 'https://github.com/fettajesusbanco-eng/gestionnaire-playlists-youtube';
 const defaultState = () => ({
   atelierJlbMobile: true, version:1, videos:[], importedAt:null,
   links:{github:'https://github.com/',atelier:'',nettoyage:'',youtube:'https://studio.youtube.com/',suno:'https://suno.com/',extras:[]},
@@ -50,7 +53,7 @@ function btnLink(title,url,mode='external'){const ok=validUrl(url);return ok?`<a
 function layoutIntro(tag,title,description){return `<section class="hero"><div class="eyebrow">${esc(tag)}</div><h1>${esc(title)}</h1><p>${esc(description)}</p></section>`;}
 function renderHome(){const count=state.videos.length;const planned=state.videos.filter(v=>v.category!=='originale' && v.currentPlaylist!==v.targetPlaylist).length;
 return `${layoutIntro('TABLEAU DE BORD','Tes outils, au même endroit','Une interface mobile pour avancer sur tes projets, sans perdre le contrôle de tes données.')}
-<div class="summary"><div class="metric"><strong>${count}</strong><small>vidéos importées</small></div><div class="metric"><strong>${new Set(state.videos.flatMap(v=>[v.currentPlaylist,v.targetPlaylist]).filter(Boolean)).size}</strong><small>playlists repérées</small></div><div class="metric"><strong>${planned}</strong><small>changements en projet</small></div></div>
+<div class="summary"><div class="metric"><strong>${count}</strong><small>vidéos importées</small></div><div class="metric"><strong>${new Set(state.videos.flatMap(v=>[v.currentPlaylist,v.targetPlaylist]).filter(Boolean)).size}</strong><small>noms de playlists du fichier</small></div><div class="metric"><strong>${planned}</strong><small>affectations proposées</small></div></div>
 <div class="notice">Ces chiffres proviennent <strong>uniquement des fichiers importés dans cette application</strong>. Aucune connexion automatique à YouTube ou à GitHub n'est active.</div>
 <div class="section-head"><h2>Espaces de travail</h2><span>Navigation rapide</span></div><div class="tile-grid">
 ${tile('☷','Playlists','Répartir et simuler les classements.','playlists')}
@@ -61,11 +64,11 @@ ${tile('🎙','Voix','Commandes vocales de navigation.','voice')}
 ${tile('⚙','Confort','Taille, contraste et disposition.','settings')}
 </div>
 <div class="section-head"><h2>Mes accès</h2></div><div class="button-row">${btnLink('Atelier YouTube',state.links.atelier)}${btnLink('GitHub',state.links.github)}${btnLink('YouTube Studio',state.links.youtube)}</div>
-<div class="footer">Version de départ · les modifications de la chaîne restent volontairement désactivées.</div>`;}
+<div class="footer">Version 1.1 · stockage conservé sur cet appareil · aucune publication automatique sur YouTube.</div>`;}
 function tile(icon,title,subtitle,page){return `<button class="tile" data-action="go" data-page="${page}"><span class="em" aria-hidden="true">${icon}</span><strong>${esc(title)}</strong><small>${esc(subtitle)}</small></button>`;}
 function renderPlaylists(){const videos=state.videos;const pending=videos.filter(v=>v.category!=='originale' && v.currentPlaylist!==v.targetPlaylist);
 return `${layoutIntro('ORGANISATION','Playlists & simulations','Classement préparatoire local. Les compositions originales sont protégées des changements de playlist.')}
-<div class="panel"><h2>Préparer la répartition</h2><p>Importe ton catalogue CSV/JSON, classe chaque chanson et indique la playlist visée. Les changements sont enregistrés sur ce téléphone uniquement.</p><div class="button-row"><button class="button primary" data-action="import" data-mode="catalogue">Importer un catalogue</button><button class="button" data-action="simulate">Voir la simulation (${pending.length})</button></div></div>
+<div class="panel"><h2>Préparer la répartition</h2><p>Les affectations affichées sont des <strong>propositions</strong> : les playlists actuelles n’ont pas toutes été vérifiées sur YouTube. Le classement est conservé uniquement sur ce téléphone.</p><div class="button-row"><button class="button primary" data-action="import" data-mode="catalogue">Importer un catalogue</button><button class="button" data-action="simulate">Voir la simulation (${pending.length})</button></div></div>
 ${filterBar('playlists')}
 <div id="results">${renderVideoItems(videos,'playlists')}</div>`;}
 function filterBar(mode){return `<label class="field"><span>Rechercher une chanson</span><input id="searchInput" data-mode="${mode}" type="search" placeholder="Titre, playlist, identifiant…" value="${esc(searchText)}" autocomplete="off"></label><div class="chips" role="group" aria-label="Filtrer par catégorie">${[['tous','Toutes'],['litteraire','Littéraires'],['ia','Dialogues IA'],['originale','Originales'],['autre','Autres']].map(([k,v])=>`<button class="chip ${activeFilter===k?'active':''}" data-action="filter" data-category="${k}">${v}</button>`).join('')}</div>`;}
@@ -82,8 +85,9 @@ return `<article class="item"><div class="item-header"><strong>${esc(v.title)}</
 </article>`;}
 function renderDescriptions(){const count=state.videos.filter(v=>v.description!==v.updatedDescription).length;
 return `${layoutIntro('ÉDITORIAL','Descriptions des chansons','Rédiger des descriptions parlant de l’auteur à la troisième personne, et non à la première personne.')}
-<div class="notice">Le réécriture automatique par IA n'est pas encore connectée. Tu peux modifier les textes ici, repérer les passages à relire puis exporter le CSV des corrections, sans publier sur YouTube.</div>
-<div class="button-row"><button class="button primary" data-action="import" data-mode="catalogue">Importer CSV / JSON</button><button class="button" data-action="exportcsv">Exporter CSV (${count} modifiées)</button></div>
+<div class="notice">${count} description(s) préparée(s). Les textes restent à relire. Aucune réécriture par IA ni publication sur YouTube n'est activée.</div>
+<div class="button-row"><button class="button primary" data-action="import" data-mode="merge">Fusionner des descriptions</button><button class="button" data-action="export-descriptions">CSV ancien atelier (${count})</button></div>
+<p class="mini">La fusion par identifiant YouTube conserve toutes les chansons et les playlists. Le CSV exporté n'inclut aucun commentaire.</p>
 ${filterBar('descriptions')}<div id="results">${renderVideoItems(state.videos,'descriptions')}</div>`;}
 function hasFirstPerson(t){return /\b(je|j['’]|mon|ma|mes|moi|nous|notre|nos|yo|mi|mis|nosotros|nuestro|i |my |we |our )/i.test(String(t||''));}
 function videoDescriptionCard(v){const n=hasFirstPerson(v.updatedDescription);return `<article class="item"><div class="item-header"><strong>${esc(v.title)}</strong><span class="pill ${n?'alert':'safe'}">${n?'1re pers. à vérifier':'À relire'}</span></div><div class="sub">${esc(categoryLabel(v.category))}</div>
@@ -91,19 +95,20 @@ function videoDescriptionCard(v){const n=hasFirstPerson(v.updatedDescription);re
 <div class="mini">${v.updatedDescription!==v.description?'Texte modifié localement · ':'Aucune modification · '}<span>${v.updatedDescription.length} caractères</span></div></article>`;}
 function renderTools(){const l=state.links;
 return `${layoutIntro('BOÎTE À OUTILS','GitHub et projets','Tous tes projets accessibles depuis un seul écran, même s’ils sont hébergés sur des services différents.')}
-<div class="panel"><h2>Accès rapides</h2><div class="button-row">${btnLink('GitHub',l.github)}${btnLink('Atelier playlists',l.atelier)}${btnLink('Nettoyage YouTube',l.nettoyage)}${btnLink('YouTube Studio',l.youtube)}${btnLink('Suno',l.suno)}</div></div>
+<div class="panel"><h2>Projets GitHub retrouvés</h2><div class="button-row">${btnLink('Atelier JLB Mobile',GITHUB_MOBILE)}${btnLink('Ancien gestionnaire de playlists',GITHUB_GESTIONNAIRE)}</div><p class="mini">Ces boutons ouvrent les dépôts GitHub (le code source), pas une connexion automatique aux comptes.</p></div>
+<div class="panel"><h2>Accès rapides à mes outils</h2><div class="button-row">${btnLink('GitHub',l.github)}${btnLink('Atelier playlists',l.atelier)}${btnLink('Nettoyage YouTube',l.nettoyage)}${btnLink('YouTube Studio',l.youtube)}${btnLink('Suno',l.suno)}</div></div>
 <div class="panel"><h2>Mes autres outils</h2>${l.extras.length?l.extras.map((x,i)=>`<div class="link-row item"><div><strong>${esc(x.name)}</strong><div class="sub">${esc(x.url)}</div></div><div class="button-row">${btnLink('Ouvrir',x.url)}<button class="small-button" data-action="remove-link" data-index="${i}" aria-label="Supprimer le raccourci ${esc(x.name)}">✕</button></div></div>`).join(''):'<p>Aucun raccourci personnalisé enregistré.</p>'}
 <label class="field"><span>Nom du raccourci</span><input id="newLinkName" placeholder="Par exemple : bibliothèque musicale"></label>
 <label class="field"><span>Adresse HTTPS</span><input id="newLinkUrl" type="url" placeholder="https://…"></label>
 <button class="button primary wide" data-action="add-link">Ajouter un outil</button></div>
-<div class="panel"><h2>Configurer les liens principaux</h2><p>Colle les URL de tes outils GitHub Pages existants. Nous ne les connaissons pas encore depuis cette application.</p>
+<div class="panel"><h2>Configurer les liens principaux</h2><p>Pour lancer directement l'ancien atelier, renseigne ici les URL <strong>publiées</strong> de ses pages. Leur code source a été retrouvé dans ton autre dépôt GitHub.</p>
 ${[['github','Page GitHub'],['atelier','Atelier YouTube actuel'],['nettoyage','Outil de nettoyage'],['youtube','YouTube Studio'],['suno','Suno']].map(([key,label])=>`<label class="field"><span>${label}</span><input type="url" data-link="${key}" value="${esc(l[key])}" placeholder="https://…"></label>`).join('')}
 <button class="button primary wide" data-action="save-links">Enregistrer les adresses</button></div>`;}
 function renderData(){const changed=state.videos.filter(v=>v.description!==v.updatedDescription).length;
 return `${layoutIntro('FICHIERS','Importer & sauvegarder','Sauvegardes en JSON et tableaux CSV, sans stockage de mot de passe ou de jeton d’accès.')}
 <div class="panel"><h2>Catalogue et sauvegardes</h2><p>${state.videos.length} chansons en mémoire. ${changed} description(s) modifiée(s). ${state.importedAt?'Dernier import : '+esc(new Date(state.importedAt).toLocaleString('fr-FR')):'Aucun import effectué.'}</p>
-<div class="button-row"><button class="button primary" data-action="import" data-mode="catalogue">Importer CSV / JSON</button><button class="button" data-action="import" data-mode="restore">Restaurer sauvegarde JLB</button></div><p class="mini">L'import de catalogue remplace le catalogue local après une confirmation. La restauration remplace toutes les données locales.</p></div>
-<div class="panel"><h2>Exporter mon travail</h2><div class="button-row"><button class="button primary" data-action="backup">Sauvegarde complète JSON</button><button class="button" data-action="exportcsv">Catalogue CSV</button></div><div class="notice">La sauvegarde JSON conserve également tes liens et tes préférences. Le CSV contient les brouillons de playlists et les descriptions préparées.</div></div>
+<div class="button-row"><button class="button primary" data-action="import" data-mode="merge">Fusionner descriptions</button><button class="button" data-action="import" data-mode="catalogue">Remplacer catalogue complet</button><button class="button" data-action="import" data-mode="restore">Restaurer sauvegarde JSON</button></div><p class="mini">La fusion conserve les 130 vidéos et les playlists. Elle ne remplace que les descriptions trouvées par identifiant vidéo. L'importation complète remplace les données locales après confirmation.</p><button class="button wide" data-action="undo-import">Annuler la dernière importation (si disponible)</button></div>
+<div class="panel"><h2>Exporter mon travail</h2><div class="button-row"><button class="button primary" data-action="backup">Sauvegarde complète JSON</button><button class="button" data-action="exportcsv">Catalogue CSV</button><button class="button" data-action="export-descriptions">CSV descriptions pour l'ancien atelier</button><button class="button" data-action="export-playlists">CSV affectations proposées</button></div><div class="notice">Les exports sont seulement des <strong>fichiers de préparation</strong>. Pour l'ancien atelier, choisir « Modifier les descriptions uniquement » et contrôler son aperçu avant tout envoi. Ne pas choisir « Descriptions + commentaires ».</div></div>
 <div class="panel"><h2>Protection des données</h2><p>Les fichiers importés et tes brouillons restent dans le stockage local du navigateur. Ils ne sont pas synchronisés automatiquement avec un autre appareil.</p><button class="button danger wide" data-action="clear">Effacer toutes les données locales</button></div>`;}
 function renderSettings(){return `${layoutIntro('ACCESSIBILITÉ','Réglages','Une interface adaptable aux yeux, à la main et à la manière de travailler.')}
 <div class="panel"><h2>Confort d’utilisation</h2>
@@ -124,14 +129,60 @@ if(Array.isArray(j))return {kind:'catalogue',data:j};
 for(const ar of [j.videos,j.items,j.entries,j.catalogue,j.data?.videos,j.data?.items,j.descriptions])if(Array.isArray(ar))return {kind:'catalogue',data:ar};
 if(j.descriptions&&typeof j.descriptions==='object'){return {kind:'catalogue',data:Object.entries(j.descriptions).map(([title,description])=>({title,description:typeof description==='string'?description:description?.description||''}))};}
 throw Error('Structure JSON non reconnue : exporter plutôt un CSV avec la colonne titre/title.');}
+
+// Descriptions partielles : fusion uniquement par identifiant YouTube, jamais par titre.
+function changesFromFile(rows){
+  const byId=new Map(state.videos.filter(v=>v.videoId).map(v=>[v.videoId,v]));
+  const seen=new Set(),changes=[];let missing=0,skipped=0,unmatched=0,duplicate=0;
+  for(const row of rows){
+    if(!row||typeof row!=='object'){skipped++;continue;}
+    const id=String(findProp(row,'videoId','video_id','Video ID','idVideo','youtubeId','id')||'').trim();
+    const next=String(findProp(row,'descriptionNouvelle','updatedDescription','nouvelleDescription','nouvelle description','Description YouTube','description')||'').trim();
+    if(!id){missing++;continue;}
+    if(seen.has(id)){duplicate++;continue;}
+    seen.add(id);
+    const existing=byId.get(id);
+    if(!existing){unmatched++;continue;}
+    if(!next||next===existing.updatedDescription){skipped++;continue;}
+    changes.push({id,title:existing.title,uid:existing.uid,next});
+  }
+  if(duplicate)throw Error(`${duplicate} identifiant(s) YouTube dupliqué(s) dans le fichier. Aucune fusion : corrige le fichier.`);
+  return {changes,missing,skipped,unmatched};
+}
+function saveUndo(){try{localStorage.setItem(UNDO_KEY,JSON.stringify(state));return true;}catch(e){alert('Impossible de préserver une copie locale avant import. Exporte une sauvegarde JSON et libère de l’espace.');return false;}}
+function undoImport(){try{
+  const raw=localStorage.getItem(UNDO_KEY);if(!raw){toast('Aucune importation récente à annuler.');return;}
+  if(!confirm('Restaurer les données locales d’avant la dernière importation ? Tes corrections récentes seront remplacées.'))return;
+  state=validateState(JSON.parse(raw));if(!save())return;localStorage.removeItem(UNDO_KEY);render();toast('Ancien catalogue local restauré.');
+}catch(e){alert('Impossible de restaurer la dernière importation : '+(e?.message||e));}}
+function mergeDescriptions(rows,filename){
+  if(!state.videos.length)throw Error('Importe d’abord ton catalogue complet avant de fusionner des descriptions.');
+  const {changes,missing,skipped,unmatched}=changesFromFile(rows);
+  const preview=changes.slice(0,6).map(c=>'• '+c.title+' ('+c.id+')').join('\n');
+  if(!changes.length){alert('Aucune nouvelle description reconnue.\nSans ID : '+missing+' · IDs absents du catalogue : '+unmatched+' · Vides/identiques : '+skipped);return;}
+  const message='FUSION LOCALE : '+filename+'\n\n'+changes.length+' description(s) seront mises à jour.\n'
+    +'Conservées : '+state.videos.length+' chansons, playlists, catégories et descriptions des autres vidéos.\n'
+    +'IDs absents : '+unmatched+' · Sans ID : '+missing+' · Vides/identiques : '+skipped+'\n\n'
+    +'Exemples :\n'+preview+'\n\nRien ne sera publié sur YouTube. Continuer ?';
+  if(!confirm(message))return;
+  if(!saveUndo())return;
+  const byUid=new Map(state.videos.map(v=>[v.uid,v]));
+  for(const c of changes)byUid.get(c.uid).updatedDescription=c.next;
+  if(!save())return;
+  searchText='';activeFilter='tous';nav('descriptions');toast(changes.length+' description(s) fusionnée(s) localement.');
+}
+
 function importFile(file){if(!file)return;const reader=new FileReader();reader.onload=()=>{try{const parsed=parseImportedText(String(reader.result||''),file.name);
 if(importMode==='restore'&&parsed.kind!=='backup')throw Error('Pour une restauration, sélectionne une sauvegarde JSON générée par Atelier JLB Mobile.');
+if(importMode==='merge'){if(parsed.kind==='backup')throw Error('Choisis un CSV de descriptions ou une sauvegarde de descriptions, pas une sauvegarde générale.');mergeDescriptions(parsed.data,file.name);return;}
 if(parsed.kind==='backup'){
  if(!confirm(`Restaurer la sauvegarde et remplacer les ${state.videos.length} vidéo(s) actuellement en mémoire ?`))return;
+ if(!saveUndo())return;
  state=parsed.data;save();toast('Sauvegarde restaurée.');render();return;}
  const data=parsed.data.map((v,i)=>normalizeVideo(v,i)).filter(v=>v.title);
  if(!data.length)throw Error('Aucune ligne avec un titre (title/titre) détectée.');
  if(!confirm(`Importer ${data.length} chanson(s) depuis ${file.name} ? Cela remplacera le catalogue local. Fais une sauvegarde si nécessaire.`))return;
+ if(!saveUndo())return;
  state.videos=data;state.importedAt=new Date().toISOString();searchText='';activeFilter='tous';save();toast(`${data.length} chansons importées localement.`);nav('playlists');
 }catch(e){alert('Import non effectué : '+(e?.message||String(e)));}};reader.onerror=()=>alert('Lecture du fichier impossible.');reader.readAsText(file,'utf-8');}
 function csvCell(x){return `"${String(x??'').replace(/"/g,'""')}"`;}
@@ -139,9 +190,29 @@ function saveFile(name,content,mime){const blob=new Blob([content],{type:mime});
 function backup(){saveFile('atelier_jlb_mobile_sauvegarde_'+new Date().toISOString().slice(0,10)+'.json',JSON.stringify(state,null,2),'application/json;charset=utf-8');toast('Sauvegarde JSON créée.');}
 function exportCsv(){if(!state.videos.length){toast('Aucune vidéo à exporter.');return;}const heads=['videoId','titre','categorie','playlistActuelle','playlistCible','descriptionActuelle','descriptionNouvelle'];const rows=state.videos.map(v=>[v.videoId,v.title,categoryLabel(v.category),v.currentPlaylist,v.targetPlaylist,v.description,v.updatedDescription].map(csvCell).join(';'));
 saveFile('atelier_jlb_brouillons_'+new Date().toISOString().slice(0,10)+'.csv','\uFEFF'+heads.join(';')+'\r\n'+rows.join('\r\n'),'text/csv;charset=utf-8');toast('CSV préparé (aucune publication).');}
+
+function exportDescriptionsForAtelier(){
+ const changed=state.videos.filter(v=>v.videoId&&v.updatedDescription.trim()&&v.updatedDescription!==v.description);
+ if(!changed.length){toast('Aucun brouillon de description modifié à exporter.');return;}
+ const headers=['Video ID','Titre de la chanson','Description YouTube'];
+ const rows=changed.map(v=>[v.videoId,v.title,v.updatedDescription].map(csvCell).join(';'));
+ saveFile('JLB_DESCRIPTIONS_POUR_ANCIEN_ATELIER_'+new Date().toISOString().slice(0,10)+'.csv',
+  '\uFEFF'+headers.join(';')+'\r\n'+rows.join('\r\n'),'text/csv;charset=utf-8');
+ toast(changed.length+' descriptions exportées. Aucune publication.');
+}
+function exportPlaylistsForAtelier(){
+ const change=state.videos.filter(v=>v.category!=='originale'&&v.videoId&&v.targetPlaylist&&v.currentPlaylist!==v.targetPlaylist);
+ if(!change.length){toast('Aucune affectation proposée à exporter.');return;}
+ const headers=['Video ID','Titre de la chanson','Playlist de création correspondante'];
+ const rows=change.map(v=>[v.videoId,v.title,v.targetPlaylist].map(csvCell).join(';'));
+ saveFile('JLB_AFFECTATIONS_A_VERIFIER_'+new Date().toISOString().slice(0,10)+'.csv',
+  '\uFEFF'+headers.join(';')+'\r\n'+rows.join('\r\n'),'text/csv;charset=utf-8');
+ toast(change.length+' affectations préparées. Aucun changement YouTube.');
+}
+
 function simulate(){const change=state.videos.filter(v=>v.category!=='originale'&&v.currentPlaylist!==v.targetPlaylist);
 if(!change.length){alert('Aucun changement de playlist préparé.');return;}
-const text=change.slice(0,80).map(v=>`${v.title}\n  ${v.currentPlaylist||'(non renseignée)'}  →  ${v.targetPlaylist||'(à retirer)'}`).join('\n\n');alert(`SIMULATION LOCALE UNIQUEMENT\n\n${change.length} modification(s) envisagée(s).\n0 modification(s) effectuée(s) sur YouTube.\n\n${text}${change.length>80?'\n\n… Liste tronquée. Exporte le CSV complet.':''}`);}
+const text=change.slice(0,80).map(v=>`${v.title}\n  ${v.currentPlaylist||'Playlist actuelle non connue'}  →  ${v.targetPlaylist||'Destination à vérifier'}`).join('\n\n');alert(`SIMULATION LOCALE UNIQUEMENT\n\n${change.length} affectation(s) proposée(s), non vérifiée(s) avec les playlists de YouTube.\n0 modification effectuée sur YouTube.\n\n${text}${change.length>80?'\n\n… Liste tronquée. Exporte le CSV complet.':''}`);}
 function setItem(uid,key,val){const video=state.videos.find(v=>v.uid===uid);if(!video)return;
 if(key==='category'){video.category=val;if(val==='originale')video.targetPlaylist=video.currentPlaylist;}
 else if(key==='targetPlaylist'){if(video.category==='originale'){toast('Composition originale protégée.');return;}video.targetPlaylist=val;}
@@ -165,6 +236,9 @@ if(act==='import'){importMode=b.dataset.mode||'catalogue';inputFile.value='';inp
 if(act==='simulate')simulate();
 if(act==='backup')backup();
 if(act==='exportcsv')exportCsv();
+if(act==='export-descriptions')exportDescriptionsForAtelier();
+if(act==='export-playlists')exportPlaylistsForAtelier();
+if(act==='undo-import')undoImport();
 if(act==='install')install();
 if(act==='clear'){if(confirm('Effacer toutes les données locales, les brouillons, les liens et les réglages de cette application ? Cette opération ne touche pas YouTube.')){state=defaultState();save();render();toast('Données locales effacées.');}}
 if(act==='save-links'){document.querySelectorAll('[data-link]').forEach(input=>{const s=input.value.trim();state.links[input.dataset.link]=s?(validUrl(s)||state.links[input.dataset.link]):'';});save();toast('Liens enregistrés.');render();}
