@@ -1,0 +1,13 @@
+/* Extension du thème existant, sans modification des réglages utilisateur */
+.tabbar{grid-template-columns:repeat(7,minmax(0,1fr));padding-left:3px;padding-right:3px}
+.tabbar button{min-width:0;padding-left:1px;padding-right:1px}
+.tabbar button small{font-size:9px;white-space:nowrap}
+.tabbar button span{font-size:21px}
+.note-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.note-fields .field{min-width:0}
+.note-item{padding:15px;margin-top:12px}
+.note-text{white-space:pre-wrap;overflow-wrap:anywhere;padding:10px 0 14px;line-height:1.5}
+.note-item .button-row .button{min-width:95px;flex:1}
+.note-home{border-color:var(--accent)}
+.note-home .button{margin-top:4px}
+@media(max-width:390px){.tabbar button small{font-size:8px;letter-spacing:-.02em}.tabbar button span{font-size:20px}.note-fields{grid-template-columns:1fr}}
