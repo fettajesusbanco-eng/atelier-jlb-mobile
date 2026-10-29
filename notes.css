@@ -1,13 +1,28 @@
-/* Extension du thème existant, sans modification des réglages utilisateur */
+/* Atelier JLB Mobile v1.5 — carnet libre : suit automatiquement le thème de l'atelier */
 .tabbar{grid-template-columns:repeat(7,minmax(0,1fr));padding-left:3px;padding-right:3px}
 .tabbar button{min-width:0;padding-left:1px;padding-right:1px}
 .tabbar button small{font-size:9px;white-space:nowrap}
 .tabbar button span{font-size:21px}
-.note-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.note-fields .field{min-width:0}
-.note-item{padding:15px;margin-top:12px}
-.note-text{white-space:pre-wrap;overflow-wrap:anywhere;padding:10px 0 14px;line-height:1.5}
-.note-item .button-row .button{min-width:95px;flex:1}
+.jlb-notebook{padding:19px 17px 17px;border-color:var(--accent2)}
+.jlb-note-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:9px;margin-bottom:12px}
+.jlb-note-heading h2{margin:0;font-size:20px}
+.jlb-note-count{flex-shrink:0;font-size:12px;color:var(--muted);margin-top:5px}
+#noteContent{display:block;min-height:235px;width:100%;font:inherit;font-size:16px;line-height:1.65;color:var(--text);background:var(--bg);border:1px solid var(--line);border-radius:17px;padding:15px;resize:vertical;outline-offset:2px}
+#noteContent:focus{outline:2px solid var(--accent);border-color:var(--accent)}
+#noteContent::placeholder{color:var(--muted);opacity:.9}
+.jlb-mic-status{min-height:24px;margin:10px 0;color:var(--muted);font-size:13px;line-height:1.45}
+.jlb-mic-status.note-warning{color:var(--danger)}
+.jlb-note-actions{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:10px}
+.jlb-note-actions .button{min-width:0;padding:12px 8px;font-size:15px;min-height:60px;text-align:center}
+.note-mic[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent);background:var(--surface)}
+.jlb-keyboard-help{display:block;background:none;border:0;color:var(--accent2);text-decoration:underline;text-underline-offset:3px;font-size:13px;text-align:left;margin-top:12px;padding:9px 0;line-height:1.45}
+.note-cancel{margin-top:12px}
+.jlb-saved-notes .jlb-note-filters{margin-bottom:16px}
+.jlb-note-item{margin-top:13px}
+.jlb-note-item .item-header strong{font-size:16px;line-height:1.35;overflow-wrap:anywhere;max-width:100%}
+.jlb-note-item .note-text{white-space:pre-wrap;overflow-wrap:anywhere;padding:12px 0 14px;font-size:15px;line-height:1.6}
+.jlb-note-item-actions{display:flex;gap:9px;align-items:center}
+.jlb-note-item-actions .small-button{flex:1;min-width:0;font-size:13px}
+.jlb-note-item-actions .small-button:last-child{flex:0 0 46px;color:var(--danger)}
 .note-home{border-color:var(--accent)}
-.note-home .button{margin-top:4px}
-@media(max-width:390px){.tabbar button small{font-size:8px;letter-spacing:-.02em}.tabbar button span{font-size:20px}.note-fields{grid-template-columns:1fr}}
+@media(max-width:390px){.tabbar button small{font-size:8px;letter-spacing:-.02em}.tabbar button span{font-size:20px}.jlb-note-actions{grid-template-columns:1fr 1.2fr}.jlb-note-actions .button{font-size:13px}.jlb-note-item-actions .small-button{padding:8px 4px}}
